@@ -1,0 +1,151 @@
+- 👋 Hi, I’m @Satyam9106
+- 👀 I’m interested in ...
+- 🌱 I’m currently learning ...
+- 💞️ I’m looking to collaborate on ...
+- 📫 How to reach me ...
+
+<!---
+Satyam9106/Satyam9106 is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
+You can click the Preview link to take a look at your changes.
+--->
+## Assignment
+
+Log Ingestor and Query Interface
+
+
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.servlet.ServletHolder;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+class Log {
+    String level;
+    String message;
+    String resourceId;
+    String timestamp;
+    String traceId;
+    String spanId;
+    String commit;
+    Metadata metadata;
+
+    public Log(String level, String message, String resourceId, String timestamp,
+               String traceId, String spanId, String commit, Metadata metadata) {
+        this.level = level;
+        this.message = message;
+        this.resourceId = resourceId;
+        this.timestamp = timestamp;
+        this.traceId = traceId;
+        this.spanId = spanId;
+        this.commit = commit;
+        this.metadata = metadata;
+    }
+}
+
+class Metadata {
+    String parentResourceId;
+
+    public Metadata(String parentResourceId) {
+        this.parentResourceId = parentResourceId;
+    }
+}
+
+public class LogIngestor {
+
+    private static List<Log> logs = new ArrayList<>();
+
+    public static void main(String[] args) throws Exception {
+        startLogIngestorServer();
+    }
+
+    private static void startLogIngestorServer() throws Exception {
+        Server server = new Server(3000);
+
+        ServletContextHandler contextHandler = new ServletContextHandler();
+        contextHandler.setContextPath("/");
+        server.setHandler(contextHandler);
+
+        contextHandler.addServlet(new ServletHolder(new LogIngestorServlet()), "/ingest");
+
+        server.start();
+        server.join();
+    }
+
+    public static class LogIngestorServlet extends HttpServlet {
+        @Override
+        protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+            Log log = new Log(
+                    req.getParameter("level"),
+                    req.getParameter("message"),
+                    req.getParameter("resourceId"),
+                    req.getParameter("timestamp"),
+                    req.getParameter("traceId"),
+                    req.getParameter("spanId"),
+                    req.getParameter("commit"),
+                    new Metadata(req.getParameter("metadata.parentResourceId"))
+            );
+
+            logs.add(log);
+
+            resp.getWriter().println("Log ingested successfully");
+        }
+    }
+}
+
+class QueryInterface {
+
+    private static List<Log> logs = new ArrayList<>();
+
+    public static void main(String[] args) throws Exception {
+        startQueryInterfaceServer();
+    }
+
+    private static void startQueryInterfaceServer() throws Exception {
+        Server server = new Server(3001);
+
+        ServletContextHandler contextHandler = new ServletContextHandler();
+        contextHandler.setContextPath("/");
+        server.setHandler(contextHandler);
+
+        contextHandler.addServlet(new ServletHolder(new QueryInterfaceServlet()), "/query");
+
+        server.start();
+        server.join();
+    }
+
+    public static class QueryInterfaceServlet extends HttpServlet {
+        @Override
+        protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+            String level = req.getParameter("level");
+            String message = req.getParameter("message");
+            String resourceId = req.getParameter("resourceId");
+            String timestamp = req.getParameter("timestamp");
+            String traceId = req.getParameter("traceId");
+            String spanId = req.getParameter("spanId");
+            String commit = req.getParameter("commit");
+            String parentResourceId = req.getParameter("metadata.parentResourceId");
+
+            List<Log> result = logs.stream()
+                    .filter(log ->
+                            (level == null || level.equals(log.level)) &&
+                            (message == null || log.message.contains(message)) &&
+                            (resourceId == null || resourceId.equals(log.resourceId)) &&
+                            (timestamp == null || timestamp.equals(log.timestamp)) &&
+                            (traceId == null || traceId.equals(log.traceId)) &&
+                            (spanId == null || spanId.equals(log.spanId)) &&
+                            (commit == null || commit.equals(log.commit)) &&
+                            (parentResourceId == null || parentResourceId.equals(log.metadata.parentResourceId))
+                    )
+                    .collect(Collectors.toList());
+
+            resp.getWriter().println(result);
+        }
+    }
+}
